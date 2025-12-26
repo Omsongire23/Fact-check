@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,11 +16,14 @@ import (
 	"google.golang.org/adk/model/gemini"
 	"google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
+
+	"techfact-trader/internal/services"
 )
 
 type AgentManager struct {
 	Config *config.Config
 	Model  model.LLM
+	Search *services.SearchService
 }
 
 func NewAgentManager(cfg *config.Config) (*AgentManager, error) {
@@ -45,9 +49,15 @@ func NewAgentManager(cfg *config.Config) (*AgentManager, error) {
 		return nil, err
 	}
 
+	searchService, err := services.NewSearchService(ctx, cfg.ProjectID, "us-central1")
+	if err != nil {
+		return nil, fmt.Errorf("failed to init search service: %w", err)
+	}
+
 	return &AgentManager{
 		Config: cfg,
 		Model:  model,
+		Search: searchService,
 	}, nil
 }
 
@@ -148,4 +158,20 @@ func (m *AgentManager) RunAgentWithConfig(ctx context.Context, cfg llmagent.Conf
 		}
 	}
 	return sb.String(), nil
+}
+
+// CleanAndParseJSON attempts to unmarshal a string that might be wrapped in markdown code blocks
+func (m *AgentManager) CleanAndParseJSON(input string, v interface{}) error {
+	// Remove markdown code blocks if present
+	cleaned := strings.TrimSpace(input)
+	if strings.HasPrefix(cleaned, "```json") {
+		cleaned = strings.TrimPrefix(cleaned, "```json")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+	} else if strings.HasPrefix(cleaned, "```") {
+		cleaned = strings.TrimPrefix(cleaned, "```")
+		cleaned = strings.TrimSuffix(cleaned, "```")
+	}
+	cleaned = strings.TrimSpace(cleaned)
+
+	return json.Unmarshal([]byte(cleaned), v)
 }

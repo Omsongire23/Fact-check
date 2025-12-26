@@ -67,13 +67,13 @@ func (h *PortfolioHandler) Rebalance(c *gin.Context) {
 
 	// Mocking getting the "latest impacted news"
 	// In reality, we'd query db.GetLatestHighImpactNews()
-	mockImpact := &models.ImpactAnalysis{
-		AffectedTickers: []string{"AAPL"},
-		SentimentScore:  0.9,
-		RiskLevel:       "Low",
+	mockInsight := &models.PortfolioInsight{
+		ImpactAnalysis:   "Analysis of AAPL impact",
+		Actionable:       true,
+		RelevantHoldings: []string{"AAPL"},
 	}
 
-	recs, err := h.AgentManager.RebalancePortfolio(c.Request.Context(), portfolio, mockImpact)
+	recs, err := h.AgentManager.GenerateTacticalRecommendations(c.Request.Context(), portfolio, mockInsight)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rebalancing failed: " + err.Error()})
 		return

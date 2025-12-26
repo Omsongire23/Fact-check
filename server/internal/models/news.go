@@ -12,6 +12,14 @@ type Article struct {
 	PublishedAt time.Time       `firestore:"published_at" json:"published_at"`
 	Claims      []Claim         `firestore:"claims" json:"claims"`
 	Impact      *ImpactAnalysis `firestore:"impact,omitempty" json:"impact,omitempty"`
+
+	// New Analysis Fields
+	AnalysisTime      string   `firestore:"analysis_time" json:"analysis_time"`
+	StrategicAnalysis string   `firestore:"strategic_analysis" json:"strategic_analysis"`
+	VerifiedSources   []string `firestore:"verified_sources" json:"verified_sources"`
+	RelatedArticles   []string `firestore:"related_articles" json:"related_articles"`
+	ConfidenceScore   float64  `firestore:"confidence_score" json:"confidence_score"`
+	Verdict           *Verdict `firestore:"verdict,omitempty" json:"verdict,omitempty"`
 }
 
 type ImpactAnalysis struct {

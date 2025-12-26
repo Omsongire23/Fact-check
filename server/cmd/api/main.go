@@ -45,7 +45,7 @@ func main() {
 
 	// 4. Initialize Handlers
 	portfolioHandler := api.NewPortfolioHandler(portfolioRepo, agentManager, alpacaService)
-	newsHandler := api.NewNewsHandler(newsService, claimRepo, agentManager)
+	newsHandler := api.NewNewsHandler(newsService, claimRepo, agentManager, portfolioRepo)
 
 	// 5. Setup Router
 	r := gin.Default()

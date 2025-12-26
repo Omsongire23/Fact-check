@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"techfact-trader/internal/models"
@@ -23,39 +24,72 @@ func NewNewsService() *NewsService {
 	}
 }
 
-func (s *NewsService) IngestRSS(feedURL string) ([]models.Article, error) {
-	feed, err := s.FeedParser.ParseURL(feedURL)
+func (s *NewsService) Ingest(url string) ([]models.Article, error) {
+	// 1. Try treating as RSS feed
+	feed, err := s.FeedParser.ParseURL(url)
+	if err == nil && feed != nil {
+		var articles []models.Article
+		for _, item := range feed.Items {
+			article := models.Article{
+				ID:          generateID(item.Link),
+				Title:       item.Title,
+				URL:         item.Link,
+				Summary:     item.Description,
+				PublishedAt: getPublishTime(item),
+				Source:      feed.Title,
+			}
+			if item.Content != "" {
+				article.Content = item.Content
+			} else {
+				article.Content = item.Description
+			}
+			articles = append(articles, article)
+		}
+		return articles, nil
+	}
+
+	// 2. Fallback: Treat as single article and scrape
+	article := models.Article{
+		ID:          generateID(url),
+		URL:         url,
+		PublishedAt: time.Now(),
+		Source:      "Web Scrape",
+	}
+
+	found := false
+	s.Collector.OnHTML("head > title", func(e *colly.HTMLElement) {
+		article.Title = e.Text
+		found = true
+	})
+	s.Collector.OnHTML("h1", func(e *colly.HTMLElement) {
+		// Prefer H1 over title tag if available
+		article.Title = e.Text
+	})
+	s.Collector.OnHTML("p", func(e *colly.HTMLElement) {
+		article.Content += e.Text + "\n\n"
+	})
+	// Capture meta description
+	s.Collector.OnHTML("meta[name=description]", func(e *colly.HTMLElement) {
+		article.Summary = e.Attr("content")
+	})
+
+	err = s.Collector.Visit(url)
 	if err != nil {
 		return nil, err
 	}
 
-	var articles []models.Article
-	for _, item := range feed.Items {
-		article := models.Article{
-			ID:          generateID(item.Link),
-			Title:       item.Title,
-			URL:         item.Link,
-			Summary:     item.Description,
-			PublishedAt: getPublishTime(item),
-			Source:      feed.Title,
-		}
+	s.Collector.Wait()
 
-		// Use RSS content directly
-		if item.Content != "" {
-			article.Content = item.Content
-		} else {
-			article.Content = item.Description
-		}
-
-		articles = append(articles, article)
+	if !found && article.Content == "" {
+		return nil, fmt.Errorf("failed to scrape content or title from %s", url)
 	}
-	return articles, nil
+
+	if article.Summary == "" && len(article.Content) > 200 {
+		article.Summary = article.Content[:200] + "..."
+	}
+
+	return []models.Article{article}, nil
 }
-
-// ScrapeContent is removed as we use RSS content directly for robustness
-// func (s *NewsService) ScrapeContent(article *models.Article) error { ... }
-
-// Helper to fill content (moved logic to IngestRSS)
 
 func generateID(s string) string {
 	h := sha256.New()

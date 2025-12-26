@@ -18,7 +18,7 @@ func (m *AgentManager) VerifyClaim(ctx context.Context, claimText string) (*mode
 		Description: "Expert fact-checker for tech news",
 		Instruction: `You are an expert fact-checker for tech news. 
 		Your goal is to verify claims.
-		Output a structured verdict with reasoning.`,
+		Output a JSON object for the Verdict struct: {"is_true": bool, "confidence_score": float (0-1), "reasoning": string, "sources": [string]}.`,
 	}
 
 	responseText, err := m.RunAgentWithConfig(ctx, cfg, prompt)
@@ -26,11 +26,15 @@ func (m *AgentManager) VerifyClaim(ctx context.Context, claimText string) (*mode
 		return nil, err
 	}
 
-	// Mocking parsing
-	return &models.Verdict{
-		IsTrue:          true,
-		ConfidenceScore: 0.95,
-		Reasoning:       responseText,
-		Sources:         []string{"Simulated Source"},
-	}, nil
+	var verdict models.Verdict
+	if err := m.CleanAndParseJSON(responseText, &verdict); err != nil {
+		// Fallback
+		return &models.Verdict{
+			IsTrue:          false,
+			ConfidenceScore: 0.0,
+			Reasoning:       "Failed to parse verdict: " + responseText,
+		}, nil
+	}
+
+	return &verdict, nil
 }
